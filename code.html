@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Google Sheets Data Load and Filter</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+
+      th,
+      td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+
+      tr:hover {
+        background-color: #f5f5f5;
+      }
+
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 16px;
+      }
+
+      .pagination button {
+        padding: 8px;
+        border-radius: 4px;
+        border: none;
+        background-color: #4caf50;
+        color: white;
+        cursor: pointer;
+      }
+
+      .pagination button:disabled {
+        background-color: #ccc;
+        cursor: default;
+      }
+
+      .pagination span {
+        margin: 0 8px;
+      }
+
+      .search-container {
+        margin-top: 16px;
+      }
+
+      .search-container input[type="text"] {
+        padding: 8px;
+        margin-right: 8px;
+        border: none;
+        border-bottom: 2px solid #4caf50;
+        font-size: 16px;
+      }
+
+      .search-container input[type="text"]:focus {
+        border-bottom: 2px solid #4caf50;
+        outline: none;
+      }
+
+      .search-container button {
+        padding: 8px;
+        border-radius: 4px;
+        border: none;
+        background-color: #4caf50;
+        color: white;
+        cursor: pointer;
+      }
+
+      .refresh-container {
+        margin-top: 16px;
+      }
+
+      .refresh-container button {
+        padding: 8px;
+        border-radius: 4px;
+        border: none;
+        background-color: #4caf50;
+        color: white;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Google Sheets Data Load and Filter</h1>
+
+    <div class="search-container">
+      <input type="text" id="search-input" placeholder="Search...">
+      <button id="search-button">Search</button>
+    </div>
+
+    <table id="data-table"></table>
+
+    <div class="pagination">
+      <button id="prev-button">Prev</button>
+      <span id="page-num"></span>
+      <button id="next-button">Next</button>
+    </div>
+
+    <div id="total-keywords"></div>
+
+    <div class="refresh-container">
+      <button id="refresh-button">Refresh</button>
+    </div>
+
+    <script>
+    const SPREADSHEET_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTa-Ie0hGYAWly_sEeiAa0f-txJmA55MIl8GEDdK-ErV4GMlCJxl8cuUIHbUMipIZL_3fVUCjUsvrjg/pub?gid=254728583&single=true&output=csv";
+
+let data = [];
+let filteredData = [];
+let currentPage = 1;
+const pageSize = 10;
+
+const fetchData = async () => {
+  const response = await fetch(SPREADSHEET_URL);
+  const csvData = await response.text();
+  const rows = csvData.split("\n");
+  const headers = rows[0].split(",").map((header) => header.trim());
+  data = rows
+    .slice(1)
+    .filter((row) => row.trim() !== "")
+    .map((row) =>
+      row
+        .split(",")
+        .map((value) => value.trim())
+        .reduce(
+          (obj, value, index) => ({
+            ...obj,
+            [headers[index]]: value,
+          }),
+          {}
+        )
+    );
+  filteredData = data;
+  displayData();
+  displayPagination();
+};
+
+const displayData = () => {
+  const table = document.getElementById("data-table");
+  table.innerHTML = "";
+
+  const headers = ["Keyword", "CPC", "Search Volume", "Keyword Intents"];
+  const tableHeaderRow = document.createElement("tr");
+  headers.forEach((header) => {
+    const th = document.createElement("th");
+    th.innerText = header;
+    tableHeaderRow.appendChild(th);
+  });
+  table.appendChild(tableHeaderRow);
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const currentPageData = filteredData.slice(startIndex, endIndex);
+
+  currentPageData.forEach((row) => {
+    const tr = document.createElement("tr");
+    headers.forEach((header) => {
+      const td = document.createElement("td");
+      td.innerText = row[header];
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  });
+};
+
+const displayPagination = () => {
+  const pageNum = document.getElementById("page-num");
+  const totalPages = Math.ceil(filteredData.length / pageSize);
+  pageNum.innerText = `${currentPage} of ${totalPages}`;
+
+  const totalKeywords = document.getElementById("total-keywords");
+  totalKeywords.innerText = `${filteredData.length} keywords`;
+
+  const prevButton = document.getElementById("prev-button");
+  prevButton.disabled = currentPage === 1;
+  prevButton.addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      displayData();
+      displayPagination();
+    }
+  });
+
+  const nextButton = document.getElementById("next-button");
+  nextButton.disabled = currentPage === totalPages;
+  nextButton.addEventListener("click", () => {
+    if (currentPage < totalPages) {
+      currentPage++;
+      displayData();
+      displayPagination();
+    }
+  });
+};
+
+const search = () => {
+  const searchInput = document.getElementById("search-input");
+  const searchText = searchInput.value.trim().toLowerCase();
+  filteredData = data.filter((row) => {
+    return (
+      row["Keyword"].toLowerCase().includes(searchText) ||
+      row["CPC"].toLowerCase().includes(searchText) ||
+      row["Search Volume"].toLowerCase().includes(searchText) ||
+      row["Keyword Intents"].toLowerCase().includes(searchText)
+    );
+  });
+  currentPage = 1;
+  displayData();
+  displayPagination();
+};
+
+const refresh = () => {
+  filteredData = data;
+  currentPage = 1;
+  displayData();
+  displayPagination();
+};
+
+const init = document.addEventListener("DOMContentLoaded", () => {
+  fetchData();
+
+  const searchInput = document.getElementById("search-input");
+  searchInput.addEventListener("keyup", () => {
+    search();
+  });
+
+  const refreshButton = document.getElementById("refresh-button");
+  refreshButton.addEventListener("click", () => {
+    refresh();
+  });
+});
+
+    
+    </script>
+  </body>
+</html>
